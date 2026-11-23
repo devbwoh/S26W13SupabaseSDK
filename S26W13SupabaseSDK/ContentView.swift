@@ -9,9 +9,17 @@ struct Song: Identifiable, Decodable, Hashable {
     let lyrics: String
 }
 
+struct NewSong: Encodable {
+    let title: String
+    let artist: String
+    let rating: Int
+    let lyrics: String
+}
+
 struct ContentView: View {
     @State private var songs: [Song] = []
     @State private var isLoggedIn = false
+    @State private var isShowingAddSheet = false
 
     var body: some View {
         NavigationStack {
@@ -50,6 +58,23 @@ struct ContentView: View {
                                 await signInAndFetch()
                             }
                         }
+                    }
+                }
+                
+                if isLoggedIn {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isShowingAddSheet = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $isShowingAddSheet) {
+                AddSongView { newSong in
+                    Task {
+                        await addSong(newSong)
                     }
                 }
             }
@@ -94,6 +119,18 @@ struct ContentView: View {
             print("삭제 실패: \(error)")
         }
     }
+    
+    func addSong(_ newSong: NewSong) async {
+        do {
+            try await SupabaseManager.client
+                .from("songs")
+                .insert(newSong)
+                .execute()
+            await fetchSongs()
+        } catch {
+            print("추가 실패: \(error)")
+        }
+    }
 }
 
 struct SongDetailView: View {
@@ -116,6 +153,47 @@ struct SongDetailView: View {
         }
         .navigationTitle(song.title)
         .navigationBarTitleDisplayMode(.large)
+    }
+}
+
+struct AddSongView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var title = ""
+    @State private var artist = ""
+    @State private var rating = 5
+    @State private var lyrics = ""
+
+    let onAdd: (NewSong) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("노래 제목", text: $title)
+                TextField("가수", text: $artist)
+                Stepper("평점: \(rating)점", value: $rating, in: 1...5)
+                TextField("가사", text: $lyrics, axis: .vertical)
+                    .lineLimit(3...6)
+            }
+            .navigationTitle("새 노래 추가")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("취소") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("저장") {
+                        let newSong = NewSong(
+                            title: title,
+                            artist: artist,
+                            rating: rating,
+                            lyrics: lyrics
+                        )
+                        onAdd(newSong)
+                        dismiss()
+                    }
+                    .disabled(title.isEmpty || artist.isEmpty)
+                }
+            }
+        }
     }
 }
 
