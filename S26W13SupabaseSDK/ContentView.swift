@@ -1,10 +1,3 @@
-//
-//  ContentView.swift
-//  S26W13SupabaseSDK
-//
-//  Created by comeng on 11/23/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
