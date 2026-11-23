@@ -1,66 +1,101 @@
 import SwiftUI
 import Supabase
 
-struct ContentView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Button("홍길동(gdhong) 로그인") {
-                Task {
-                    await signInTestUser()
-                }
-            }
-            .buttonStyle(.borderedProminent)
+struct Song: Identifiable, Decodable, Hashable {
+    let id: UUID
+    let title: String
+    let artist: String
+    let rating: Int
+    let lyrics: String
+}
 
-            Button("노래 목록 콘솔 출력") {
-                Task {
-                    await fetchSongsTest()
+struct ContentView: View {
+    @State private var songs: [Song] = []
+    @State private var isLoggedIn = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(songs) { song in
+                    NavigationLink(value: song) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(song.title)
+                                .font(.headline)
+                            Text(song.artist)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
-            .buttonStyle(.bordered)
-            
-            Button("로그아웃") {
-                Task {
-                    await signOutTestUser()
+            .navigationDestination(for: Song.self) { song in
+                SongDetailView(song: song)
+            }
+            .toolbar {
+                ToolbarItem {
+                    Button(isLoggedIn ? "로그아웃" : "임꺽정 로그인") {
+                        Task {
+                            if isLoggedIn {
+                                try? await SupabaseManager.client.auth.signOut()
+                                isLoggedIn = false
+                                songs = []
+                            } else {
+                                await signInAndFetch()
+                            }
+                        }
+                    }
                 }
             }
-            .buttonStyle(.borderedProminent)
         }
-        .padding()
     }
 
-    func signInTestUser() async {
+    func signInAndFetch() async {
         do {
-            let session = try await SupabaseManager.client.auth.signIn(
-                email: "gdhong@test.com",
+            _ = try await SupabaseManager.client.auth.signIn(
+                email: "kjlim@test.com",
                 password: "pass123"
             )
-            print("로그인 성공! User ID: \(session.user.id)")
+            isLoggedIn = true
+            await fetchSongs()
         } catch {
-            print("로그인 에러: \(error.localizedDescription)")
+            print("로그인 실패: \(error)")
         }
     }
 
-    func fetchSongsTest() async {
+    func fetchSongs() async {
         do {
-            let response = try await SupabaseManager.client
+            songs = try await SupabaseManager.client
                 .from("songs")
                 .select()
+                .order("created_at", ascending: false)
                 .execute()
-
-            let jsonString = String(data: response.data, encoding: .utf8) ?? "데이터 없음"
-            print("조회 결과:\n\(jsonString)")
+                .value
         } catch {
-            print("조회 에러: \(error.localizedDescription)")
+            print("조회 실패: \(error)")
         }
     }
-    
-    func signOutTestUser() async {
-        do {
-            try await SupabaseManager.client.auth.signOut()
-            print("로그아웃 성공")
-        } catch {
-            print("로그아웃 에러: \(error.localizedDescription)")
+}
+
+struct SongDetailView: View {
+    let song: Song
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack {
+                    Text(song.artist)
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("⭐️ \(song.rating)")
+                        .font(.title2)
+                }
+                Text(song.lyrics)
+            }
+            .padding()
         }
+        .navigationTitle(song.title)
+        .navigationBarTitleDisplayMode(.large)
     }
 }
 
