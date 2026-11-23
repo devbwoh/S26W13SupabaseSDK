@@ -26,6 +26,13 @@ struct ContentView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .swipeActions {
+                        Button("삭제", role: .destructive) {
+                            Task {
+                                await deleteSong(song)
+                            }
+                        }
+                    }
                 }
             }
             .navigationDestination(for: Song.self) { song in
@@ -72,6 +79,19 @@ struct ContentView: View {
                 .value
         } catch {
             print("조회 실패: \(error)")
+        }
+    }
+    
+    func deleteSong(_ song: Song) async {
+        do {
+            try await SupabaseManager.client
+                .from("songs")
+                .delete()
+                .eq("id", value: song.id)
+                .execute()
+            await fetchSongs()
+        } catch {
+            print("삭제 실패: \(error)")
         }
     }
 }
